@@ -20,3 +20,5 @@ class Link:
         self.free_times = 0
         self.base_marginal_cost = base_capacity / fixed_cost
         self.is_out_of_capacity = False
+        self.is_out_of_capacity_times = 0
+        self.p95_point = base_capacity

@@ -3,6 +3,7 @@ from config import Config
 from flow import Flow
 from load_balance import LoadBalanceMethod
 from greedy import GreedyMethod
+from cascara import Cascara
 import numpy as np
 import time
 import matplotlib.pyplot as plt
@@ -26,7 +27,7 @@ class Simulator:
                 print(linkname)
                 link.link_utilization = np.zeros(int(int(Config.getConfig('timeInfo', TIME))))
                 link.free_times = int(int(Config.getConfig('timeInfo', TIME)) * 0.05)
-
+                link.is_out_of_capacity_times = link.free_times
                 self.link_dict[linkname] = link
             site.infeasible = np.zeros(int(int(Config.getConfig('timeInfo', TIME))))
             site.cal_total_capacity()
@@ -54,7 +55,7 @@ class Simulator:
             #                                          time_slot)  # 上下行混合
             # for linkname, utilization in choosed_links.items():
             #     self.link_dict[linkname].link_utilization[time_slot] += utilization[0] + utilization[1]
-            choosed_links = self.method.choose_roads(flow.site, flow.app_config, download_traffic, 0,
+            choosed_links = self.method.choose_roads(flow.site, flow.app_config, download_traffic*2, 0,
                                                      time_slot)  # 只计算下行
             for linkname, utilization in choosed_links.items():
                 self.link_dict[linkname].link_utilization[time_slot] += utilization
@@ -95,7 +96,7 @@ class Simulator:
 
             plt.title("graph/" + method + "_method_ " + linkname + " ordered traffic (in)")  # 标题
             plt.savefig("graph/" + method + "_method" + linkname + ' ordered traffic (in).png')
-            #plt.show()
+            plt.show()
         return links_p95
 
     def calculate_cloud_p95(self):  # 计算各链路类型的总P95分位点
@@ -105,11 +106,6 @@ class Simulator:
         for linkname, link in self.link_dict.items():
             sorted_utilization = sorted(link.link_utilization, reverse=True)
             links_p95[linkname] = sorted_utilization[432]
-            # if linkname[2:] not in cloud_utilization:
-            #     cloud_utilization[linkname[2:]] = np.zeros(int(int(Config.getConfig('timeInfo', TIME))))
-            # for i in range((int(Config.getConfig('timeInfo', TIME)))):
-            #     cloud_utilization[linkname[2:]][i] +=link.link_utilization[i]
-
         for key, value in links_p95.items():
             if key[2:] not in cloud_p95:
                 cloud_p95[key[2:]] = 0
@@ -120,10 +116,40 @@ class Simulator:
         print(sites_infeasiable)
         return cloud_p95
 
+    def calculate_link_traffic(self, method):  # 计算各物理节点的链路的P95利用
+        links_p95 = {}
+        for sitename, site in self.site_dict.items():
+            i = 1
+            for linkname, link in site.links.items():
+                sorted_utilization = sorted(link.link_utilization, reverse=True)
+                links_p95[linkname] = sorted_utilization[432]
+                x = range(8640)
+
+                plt.subplot(1, len(site.links), i)
+                i += 1
+                plt.axhline(link.capacity,  linestyle='--', label='capacity')
+                plt.axhline(link.base_capacity,  linestyle='--', label='base_capacity')
+                plt.plot(x, link.link_utilization, marker=' ', mec='b', mfc='w',
+                         label=u'y=link utilization')
+                plt.axhline(links_p95[linkname], color='r', linestyle='--', label='p95 point')
+                plt.legend()  # 让图例生效
+                plt.margins(0.1)
+                plt.subplots_adjust(bottom=0.15)
+                plt.xlabel(u"time(5min time slot)")  # X轴标签
+                plt.ylabel(linkname+" traffic")  # Y轴标签
+
+                plt.xticks(np.arange(0, 8640, step=288), rotation=45)
+                plt.title("graph/" + method + "_method_ " + linkname + " traffic (in)")  # 标题
+            plt.savefig("graph/" + method + "_method" + sitename + ' traffic (in).png')
+            plt.show()
 
 if __name__ == "__main__":
-    #method = LoadBalanceMethod()
-    method = GreedyMethod()
+    # method = LoadBalanceMethod()
+    # method_name= 'balance'
+    # method = GreedyMethod()
+    # method_name = 'greedy'
+    method = Cascara()
+    method_name = 'cascara'
     simulator = Simulator(method)
 
     starttime = time.time()
@@ -132,6 +158,6 @@ if __name__ == "__main__":
     endtime = time.time()
     print(endtime - starttime)
 
-    simulator.calculate_link_p95("greedy")
+    simulator.calculate_link_traffic(method_name)
     print(simulator.calculate_cloud_p95())
     pass

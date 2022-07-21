@@ -36,8 +36,13 @@ class LoadBalanceMethod(BaseMethod):
             re_links_rate[linkname] = d * (link.base_capacity / total_available_base_capacity)
 
         for linkname, link in available_link.items():
+            # 在这里只记录超过最大带宽利用率的免费时间，因为超过最大带宽利用率的时间不能超过5%
+            # 只有当链路的利用率+链路准备分配的流量大于最大弹性带宽才做处理
+            # 如果已经在使用免费时间，则直接分配，但不能超过物理上限
+            # 如果还有免费时间，则使用免费时间
+            # 如果没有免费时间了，则将可分配的流量都分配，且问题infeasible
             if re_links_rate[linkname] > link.capacity - link.link_utilization[time_slot]:
-                if link.is_out_of_capacity:  # 如果已经以超出最大带宽方式运行则不管
+                if link.is_out_of_capacity:  # 如果已经以超出最大带宽方式运行则不管，且优先利用链路
                     if re_links_rate[linkname] + link.link_utilization[time_slot] > link.capacity_upperbound:
                         re_links_rate[linkname] = link.capacity_upperbound - link.link_utilization[time_slot]
                         site.infeasible[time_slot] += 1
